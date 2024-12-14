@@ -54,7 +54,7 @@ while True:
                 x1, y1, x2, y2 = box.xyxy[0]
                 x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
 
-                # Calcular centro del objeto
+                # Calcular centro del objeto (opcional para debug)
                 center_x = (x1 + x2) // 2
                 center_y = (y1 + y2) // 2
 
@@ -63,8 +63,8 @@ while True:
                 cv2.rectangle(frame_resized, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.putText(frame_resized, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-                # Verificar cruce de la línea
-                if center_y > start_point[1] - 5 and center_y < start_point[1] + 5:
+                # Verificar si la caja cruza la línea (utilizando y1 y y2)
+                if y2 > start_point[1] - 5 and y1 < start_point[1] + 5:  # Tolerancia de ±5 píxeles
                     object_id = (x1, y1, x2, y2)  # Identificador único basado en coordenadas
                     if object_id not in crossed_objects:
                         crossed_objects.add(object_id)  # Registrar objeto
@@ -73,8 +73,8 @@ while True:
                         engine.say("Un perro ha cruzado la línea")
                         engine.runAndWait()
 
-    # Dibujar la línea verde
-    cv2.line(frame_resized, start_point, end_point, (0, 255, 0), 2)
+    # Dibujar la línea verde más gruesa para mejor visualización
+    cv2.line(frame_resized, start_point, end_point, (0, 255, 0), 3)  # Línea con grosor 3
 
     # Mostrar el video
     cv2.imshow("Detección de cruces", frame_resized)
