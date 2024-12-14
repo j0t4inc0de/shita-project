@@ -1,73 +1,88 @@
-import math
 import cv2
+from datetime import datetime
 from ultralytics import YOLO
+import math
+import pyttsx3
 
-#   iniciar camara
+# URL RTSP de tu cámara
 camera_url = "rtsp://admin-admin:Kayn!%25123a@192.168.1.12:554/stream1"
 
 # Abrir el flujo de video
 cap = cv2.VideoCapture(camera_url)
-#   ajustar tamaño
-cap.set(3, 1080)
-cap.set(4, 720)
+if not cap.isOpened():
+    print("Error: No se pudo conectar a la cámara.")
+    exit()
 
-#   modelo de YOLO
-model = YOLO('yolov8n.pt')
-#   clases de YOLO pre entrenadas
-classNasme = ["person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat",
-            "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
-            "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella",
-            "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite", "baseball bat",
-            "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle", "wine glass", "cup",
-            "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange", "broccoli",
-            "carrot", "hot dog", "pizza", "donut", "cake", "chair", "sofa", "pottedplant", "bed",
-            "diningtable", "toilet", "tvmonitor", "laptop", "mouse", "remote", "keyboard", "cell phone",
-            "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors",
-            "teddy bear", "hair drier", "toothbrush"
-            ]
+# Resolución deseada
+desired_width = 1280
+desired_height = 720
 
-#   bucle para mostrar la camara
+# Definir la línea virtual
+start_point = (int(desired_width * 0.3), int(desired_height * 0.4))  # Coordenadas de inicio
+end_point = (int(desired_width * 0.7), int(desired_height * 0.4))    # Coordenadas de fin
+
+# Cargar modelos YOLO
+model_dog = YOLO("best.pt")  # Modelo entrenado solo para perros
+
+# Configuración del motor de texto a voz
+engine = pyttsx3.init()
+
+# Diccionario para rastrear cruces recientes
+crossed_objects = set()
+
+print("Mostrando video con detección de cruce...")
+
 while True:
-    #   capturar la camara
-    succes, img = cap.read()
-
-    #   detectar los objetos
-    results = model(img, stream=True)
-    print(results)
-    #   deteccion mediante un for para recorrer los resultados
-    for r in results:
-        print(f"\t{r}")
-        #   obtenemos la caja para mostrarla luego en pantalla
-        box = r.boxes
-        #   recorremos la caja 'box'
-        for b in box:
-            #   porcentaje del objeto detectado
-            porcentaje = math.ceil((box.conf[0]*100))
-            print(porcentaje)
-            if porcentaje > 70:
-                #   obtener las cordenadas para dibujar la BOX
-                x1, y1, x2, y2 = b.xyxy[0]
-                #   convertimos a entero los valores
-                x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
-                #   rectangulo en la camara
-                cv2.rectangle(img, (x1, y1), (x2, y2), (255,255,0), 3)
-                #   detallar el objeto detectado
-                org = [x1,x2] # cordenadas
-                font = cv2.FONT_HERSHEY_COMPLEX_SMALL # fuente
-                fontScale = 1
-                color = (255,255,255)
-                ancho = 2
-                # capturamos clase individual
-                nombre = classNasme[int(b.cls[0])]
-                #   añadimos texto en la imagen
-                cv2.putText(img,f'{nombre} {porcentaje}', org, font, fontScale, color, ancho)
-    #   mostrar la camara en pantalla
-    cv2.imshow('Webcam', img)
-    #   definimos una tecla para cerrar la camara
-    if cv2.waitKey(1) == ord('q'):
+    ret, frame = cap.read()
+    if not ret:
+        print("Error: No se pudo leer el flujo de video.")
         break
 
-#   liberar la camara
+    # Redimensionar el cuadro
+    frame_resized = cv2.resize(frame, (desired_width, desired_height))
+
+    # Realizar detección de perros con YOLO
+    results_dog = model_dog(frame_resized)
+
+    # Procesar resultados
+    for result in results_dog:
+        boxes = result.boxes
+        for box in boxes:
+            confidence = box.conf[0]
+            if confidence > 0.70:  # Umbral de confianza
+                # Obtener coordenadas de la caja
+                x1, y1, x2, y2 = box.xyxy[0]
+                x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+
+                # Calcular centro del objeto
+                center_x = (x1 + x2) // 2
+                center_y = (y1 + y2) // 2
+
+                # Dibujar caja y etiqueta
+                label = f"Dog {math.ceil(confidence * 100)}%"
+                cv2.rectangle(frame_resized, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.putText(frame_resized, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+                # Verificar cruce de la línea
+                if center_y > start_point[1] - 5 and center_y < start_point[1] + 5:
+                    object_id = (x1, y1, x2, y2)  # Identificador único basado en coordenadas
+                    if object_id not in crossed_objects:
+                        crossed_objects.add(object_id)  # Registrar objeto
+                        current_time = datetime.now().strftime('%H:%M:%S')
+                        print(f"¡Perro cruzó la línea! Hora: {current_time}")
+                        engine.say("Un perro ha cruzado la línea")
+                        engine.runAndWait()
+
+    # Dibujar la línea verde
+    cv2.line(frame_resized, start_point, end_point, (0, 255, 0), 2)
+
+    # Mostrar el video
+    cv2.imshow("Detección de cruces", frame_resized)
+
+    # Salir con 'q'
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+# Liberar recursos
 cap.release()
-#   cerrar ventana
 cv2.destroyAllWindows()
