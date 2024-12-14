@@ -1,69 +1,73 @@
+import math
 import cv2
-from datetime import datetime
+from ultralytics import YOLO
 
-# URL RTSP de tu cámara
+#   iniciar camara
 camera_url = "rtsp://admin-admin:Kayn!%25123a@192.168.1.12:554/stream1"
 
 # Abrir el flujo de video
 cap = cv2.VideoCapture(camera_url)
+#   ajustar tamaño
+cap.set(3, 1080)
+cap.set(4, 720)
 
-if not cap.isOpened():
-    print("Error: No se pudo conectar a la cámara.")
-    exit()
+#   modelo de YOLO
+model = YOLO('yolov8n.pt')
+#   clases de YOLO pre entrenadas
+classNasme = ["person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat",
+            "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
+            "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella",
+            "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite", "baseball bat",
+            "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle", "wine glass", "cup",
+            "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange", "broccoli",
+            "carrot", "hot dog", "pizza", "donut", "cake", "chair", "sofa", "pottedplant", "bed",
+            "diningtable", "toilet", "tvmonitor", "laptop", "mouse", "remote", "keyboard", "cell phone",
+            "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors",
+            "teddy bear", "hair drier", "toothbrush"
+            ]
 
-# Resolución deseada (por ejemplo, Full HD)
-desired_width = 1280
-desired_height = 720
-
-# Definir las coordenadas de la línea
-start_point = (int(desired_width * 0.3), int(desired_height * 0.4))  # 30% del ancho, 40% del alto
-end_point = (int(desired_width * 0.7), int(desired_height * 0.4))    # 70% del ancho, 40% del alto
-
-# Crear el sustractor de fondo
-fgbg = cv2.createBackgroundSubtractorMOG2()
-
-print("Mostrando video con detección de cruce...")
-
+#   bucle para mostrar la camara
 while True:
-    ret, frame = cap.read()
-    if not ret:
-        print("Error: No se pudo leer el flujo de video.")
+    #   capturar la camara
+    succes, img = cap.read()
+
+    #   detectar los objetos
+    results = model(img, stream=True)
+    print(results)
+    #   deteccion mediante un for para recorrer los resultados
+    for r in results:
+        print(f"\t{r}")
+        #   obtenemos la caja para mostrarla luego en pantalla
+        box = r.boxes
+        #   recorremos la caja 'box'
+        for b in box:
+            #   porcentaje del objeto detectado
+            porcentaje = math.ceil((box.conf[0]*100))
+            print(porcentaje)
+            if porcentaje > 70:
+                #   obtener las cordenadas para dibujar la BOX
+                x1, y1, x2, y2 = b.xyxy[0]
+                #   convertimos a entero los valores
+                x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+                #   rectangulo en la camara
+                cv2.rectangle(img, (x1, y1), (x2, y2), (255,255,0), 3)
+                #   detallar el objeto detectado
+                org = [x1,x2] # cordenadas
+                font = cv2.FONT_HERSHEY_COMPLEX_SMALL # fuente
+                fontScale = 1
+                color = (255,255,255)
+                ancho = 2
+                # capturamos clase individual
+                nombre = classNasme[int(b.cls[0])]
+                #   añadimos texto en la imagen
+                cv2.putText(img,f'{nombre} {porcentaje}', org, font, fontScale, color, ancho)
+    #   mostrar la camara en pantalla
+    cv2.imshow('Webcam', img)
+    #   definimos una tecla para cerrar la camara
+    if cv2.waitKey(1) == ord('q'):
         break
 
-    # Redimensionar el cuadro al tamaño deseado
-    frame_resized = cv2.resize(frame, (desired_width, desired_height))
-
-    # Aplicar el sustractor de fondo
-    fgmask = fgbg.apply(frame_resized)
-
-    # Encontrar los contornos de los objetos en movimiento
-    contours, _ = cv2.findContours(fgmask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # Iterar sobre los contornos encontrados
-    for contour in contours:
-        if cv2.contourArea(contour) > 500:  # Filtrar áreas pequeñas (ajustar según necesidad)
-            # Obtener el rectángulo delimitador del contorno
-            (x, y, w, h) = cv2.boundingRect(contour)
-
-            # Verificar si el contorno cruza la línea
-            if y + h > start_point[1] and y < end_point[1]:
-                # Obtener la hora y los segundos actuales
-                current_time = datetime.now().strftime('%H:%M:%S')
-                print(f"¡Objeto cruzó la línea! Hora: {current_time}")
-
-            # Dibujar el contorno y la línea
-            cv2.rectangle(frame_resized, (x, y), (x + w, y + h), (0, 255, 0), 2)
-
-    # Dibujar la línea en el video
-    cv2.line(frame_resized, start_point, end_point, (0, 255, 0), 2)
-
-    # Mostrar el video redimensionado
-    cv2.imshow("Video con detección de cruce", frame_resized)
-
-    # Salir con 'q'
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-# Liberar recursos
+#   liberar la camara
 cap.release()
+#   cerrar ventana
 cv2.destroyAllWindows()
