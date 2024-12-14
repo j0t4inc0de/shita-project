@@ -12,7 +12,7 @@ print('Version:', torch.version.cuda)
 print('Numero de dispositivos:', torch.cuda.device_count())
 print('Dispositivos:', torch.cuda.get_device_name(0))
 
-
+from ultralytics import YOLO
 from roboflow import Roboflow
 rf = Roboflow(api_key="JHs0I92NKOAPCY1PuJsw")
 project = rf.workspace("pop-vdhjz").project("test-xnx14")
@@ -20,7 +20,7 @@ version = project.version(2)
 dataset = version.download("yolov8")
                 
 # configurar ruta del datasets
-data_yaml = 'E:\OneDrive\OneDrive - INACAP\0 Python\shita-project\test-2\data.yaml'
+data_yaml = 'E:\OneDrive\OneDrive - INACAP\Desktop\shita-project\test-2\data.yaml'
 from ultralytics import YOLO
 # crear modelo YOLO
 model = YOLO('yolov8n.pt')
