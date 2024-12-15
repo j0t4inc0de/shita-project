@@ -27,13 +27,11 @@ start_point = (int(desired_width * 0.3), int(desired_height * 0.4))  # Coordenad
 end_point = (int(desired_width * 0.7), int(desired_height * 0.4))    # Coordenadas de fin
 
 # Cargar modelos YOLO
-model = YOLO("yolov8n.pt")  # Modelo entrenado solo para perros
+model = YOLO("yolov8n.pt")
 classNames = model.names  # Esto devuelve un diccionario como {0: 'dog'}
+
 # Configuración del motor de texto a voz
 engine = pyttsx3.init()
-
-# Diccionario para rastrear cruces recientes
-crossed_objects = set()
 
 # Funciones auxiliares para texto a voz
 def speak(text):
@@ -50,19 +48,23 @@ class DetectionThread(QThread):
     def __init__(self):
         super().__init__()
         self.running = True
+        self.frame_count = 0  # Contador de frames
 
     def run(self):
-        global crossed_objects
-
         while self.running:
             ret, frame = cap.read()
             if not ret:
                 continue
 
+            # Procesar solo frames alternos
+            self.frame_count += 1
+            if self.frame_count % 2 != 0:
+                continue
+
             # Redimensionar el cuadro
             frame_resized = cv2.resize(frame, (desired_width, desired_height))
 
-            # Realizar detección de perros con YOLO
+            # Realizar detección con YOLO
             results = model(frame_resized)
             
             # Dibujar las detecciones en el frame
