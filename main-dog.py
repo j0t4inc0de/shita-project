@@ -27,8 +27,8 @@ start_point = (int(desired_width * 0.3), int(desired_height * 0.4))  # Coordenad
 end_point = (int(desired_width * 0.7), int(desired_height * 0.4))    # Coordenadas de fin
 
 # Cargar modelos YOLO
-model = YOLO("yolov8n.pt")  # Modelo entrenado solo para perros
-classNames = model.names  # Esto devuelve un diccionario como {0: 'dog'}
+model_dog = YOLO("yolov8n.pt")  # Modelo entrenado solo para perros
+
 # Configuración del motor de texto a voz
 engine = pyttsx3.init()
 
@@ -63,28 +63,31 @@ class DetectionThread(QThread):
             frame_resized = cv2.resize(frame, (desired_width, desired_height))
 
             # Realizar detección de perros con YOLO
-            results = model(frame_resized)
-            
+            results_dog = model_dog(frame_resized)
+
             # Dibujar las detecciones en el frame
-            for r in results:
-                # Obtener las cajas de los objetos detectados
-                boxes = r.boxes
-                for b in boxes:
-                    # Porcentaje de confianza del objeto detectado
-                    conf = math.ceil(b.conf[0] * 100)
-                    if conf > 70:  # Filtrar detecciones con confianza mayor a 70%
-                        # Obtener las coordenadas para dibujar la caja
-                        x1, y1, x2, y2 = map(int, b.xyxy[0])
-                        # Dibujar rectángulo en la imagen
-                        cv2.rectangle(frame_resized, (x1, y1), (x2, y2), (255, 255, 0), 3)
-                        # Obtener el nombre de la clase detectada
-                        class_id = int(b.cls[0])  # ID de la clase detectada
-                        nombre = classNames[class_id]  # Nombre de la clase
-                        # Añadir texto en la imagen
-                        cv2.putText(
-                            frame_resized, f'{nombre} {conf}%', (x1, y1 - 10),
-                            cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255, 255, 255), 2
-                        )
+            for result in results_dog:
+                boxes = result.boxes
+                for box in boxes:
+                    confidence = box.conf[0]
+                    if confidence > 0.70:  # Umbral de confianza
+                        # Obtener coordenadas de la caja
+                        x1, y1, x2, y2 = box.xyxy[0]
+                        x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+
+                        # Dibujar caja y etiqueta
+                        label = f"Dog {math.ceil(confidence * 100)}%"
+                        cv2.rectangle(frame_resized, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                        cv2.putText(frame_resized, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+                        # Verificar si la caja cruza la línea
+                        if y2 > start_point[1] - 5 and y1 < start_point[1] + 5:  # Tolerancia de ±5 píxeles
+                            object_id = (x1, y1, x2, y2)  # Identificador único basado en coordenadas
+                            if object_id not in crossed_objects:
+                                crossed_objects.add(object_id)  # Registrar objeto
+                                current_time = datetime.now().strftime('%H:%M:%S')
+                                print(f"¡Perro cruzó la línea! Hora: {current_time}")
+                                speak("Un perro ha cruzado la línea")
 
             # Dibujar la línea verde
             cv2.line(frame_resized, start_point, end_point, (0, 255, 0), 3)
